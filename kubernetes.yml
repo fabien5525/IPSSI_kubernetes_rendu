@@ -29,60 +29,6 @@ spec:
   resources:
     requests:
       storage: 200Mi
----
-
-# deployment-web1.yml
-# nginx:latest, 2 replica, port 80
-apiVersion: apps/v1
-kind: Deployment
-
-metadata:
-  name: web1-deployment
-  labels:
-    app: web1
-
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: web1
-  template:
-    metadata:
-      labels:
-        app: web1
-    spec:
-      containers:
-      - name: web1
-        image: nginx:latest
-        ports:
-        - containerPort: 80
-
----
-# deployment-web2.ym
-# nginx:latest, 2 replica, port 80
-apiVersion: apps/v1
-kind: Deployment
-
-metadata:
-  name: web2-deployment
-  labels:
-    app: web2
-
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: web2
-  template:
-    metadata:
-      labels:
-        app: web2
-    spec:
-      containers:
-      - name: web2
-        image: nginx:latest
-        ports:
-        - containerPort: 80
 
 ---
 # deployment-database.yml
@@ -112,13 +58,13 @@ spec:
         - containerPort: 3306
         env:
         - name: MYSQL_ROOT_PASSWORD
-          value: root
+          value: toor
         - name: MYSQL_DATABASE
-          value: wordpress
+          value: E-commerce
         - name: MYSQL_USER
-          value: wordpress
+          value: ipssi
         - name: MYSQL_PASSWORD
-          value: wordpress
+          value: ipssi
         volumeMounts:
         - name: database-volume
           mountPath: /var/lib/mysql
@@ -126,6 +72,79 @@ spec:
       - name: database-volume
         persistentVolumeClaim:
           claimName: database-pvc
+
+---
+# service-database.yml
+# port 3306
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: database-service
+
+spec:
+  selector:
+    app: database
+  ports:
+    - protocol: TCP
+      port: 3306
+      targetPort: 3306
+
+---
+# deployment-web1.yml
+# nginx:latest, 2 replica, port 80
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: web1-deployment
+  labels:
+    app: web1
+
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web1
+  template:
+    metadata:
+      labels:
+        app: web1
+    spec:
+      containers:
+      - name: web1
+        image: ipssi_kubernetes_rendu-client:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 80
+
+---
+# deployment-web2.ym
+# nginx:latest, 2 replica, port 80
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: web2-deployment
+  labels:
+    app: web2
+
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web2
+  template:
+    metadata:
+      labels:
+        app: web2
+    spec:
+      containers:
+      - name: web2
+        image: ipssi_kubernetes_rendu-client:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 80
 
 ---
 # service-web1.yml
@@ -160,23 +179,6 @@ spec:
     - protocol: TCP
       port: 80
       targetPort: 80
-
----
-# service-database.yml
-# port 3306
-apiVersion: v1
-kind: Service
-
-metadata:
-  name: database-service
-
-spec:
-  selector:
-    app: database
-  ports:
-    - protocol: TCP
-      port: 3306
-      targetPort: 3306
 
 ---
 # secret-web1.yml
