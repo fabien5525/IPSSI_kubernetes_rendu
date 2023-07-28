@@ -1,0 +1,251 @@
+# pv-database.yml
+# 1 volume, 200mo
+apiVersion: v1
+kind: PersistentVolume
+
+metadata:
+  name: database-pv
+
+spec:
+  capacity:
+    storage: 200Mi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: /mnt/data
+
+---
+# pvc-database.yml
+# 1 volume, 200mo
+apiVersion: v1
+kind: PersistentVolumeClaim
+
+metadata:
+  name: database-pvc
+
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 200Mi
+---
+
+# deployment-web1.yml
+# nginx:latest, 2 replica, port 80
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: web1-deployment
+  labels:
+    app: web1
+
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web1
+  template:
+    metadata:
+      labels:
+        app: web1
+    spec:
+      containers:
+      - name: web1
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+
+---
+# deployment-web2.ym
+# nginx:latest, 2 replica, port 80
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: web2-deployment
+  labels:
+    app: web2
+
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web2
+  template:
+    metadata:
+      labels:
+        app: web2
+    spec:
+      containers:
+      - name: web2
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+
+---
+# deployment-database.yml
+# mariadb:latest, 1 replica, port 3306, variable env MYSQL_ROOT_PASSWORD, MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD, permanent volume
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: database-deployment
+  labels:
+    app: database
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: database
+  template:
+    metadata:
+      labels:
+        app: database
+    spec:
+      containers:
+      - name: database
+        image: mariadb:latest
+        ports:
+        - containerPort: 3306
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: root
+        - name: MYSQL_DATABASE
+          value: wordpress
+        - name: MYSQL_USER
+          value: wordpress
+        - name: MYSQL_PASSWORD
+          value: wordpress
+        volumeMounts:
+        - name: database-volume
+          mountPath: /var/lib/mysql
+      volumes:
+      - name: database-volume
+        persistentVolumeClaim:
+          claimName: database-pvc
+
+---
+# service-web1.yml
+# port 80
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: web1-service
+
+spec:
+  selector:
+    app: web1
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+
+---
+# service-web2.yml
+# port 80
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: web2-service
+
+spec:
+  selector:
+    app: web2
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+
+---
+# service-database.yml
+# port 3306
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: database-service
+
+spec:
+  selector:
+    app: database
+  ports:
+    - protocol: TCP
+      port: 3306
+      targetPort: 3306
+
+---
+# secret-web1.yml
+# crt, key
+apiVersion: v1
+kind: Secret
+
+metadata:
+  name: tls-secret-web1
+
+type: kubernetes.io/tls
+
+data:
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURHekNDQWdPZ0F3SUJBZ0lVZmNOWUloT3lvT0pBblJVQ01VSjhBVmRWWHVJd0RRWUpLb1pJaHZjTkFRRUwKQlFBd0hURWJNQmtHQTFVRUF3d1NkMlZpTVM1MGNDMXlaVzVrZFM1MFpYTjBNQjRYRFRJek1EY3lPREV6TURnMApOVm9YRFRJME1EY3lOekV6TURnME5Wb3dIVEViTUJrR0ExVUVBd3dTZDJWaU1TNTBjQzF5Wlc1a2RTNTBaWE4wCk1JSUJJakFOQmdrcWhraUc5dzBCQVFFRkFBT0NBUThBTUlJQkNnS0NBUUVBcE1BWlNLY3pEWFFwUWlXejJHTmkKa2pGUzMrNk9XdDFTNi9sSHZnUG1vQnlZWGZYVE1HUjhQazVFaTRHc3oxc3N1SHJxazBLZGpybURwbTkyZ1RNVQp2ODExSEZ2a3FHMHM4aCtuZWNMOXBqbEpET3RsVXRobEZLZFR4cUFYR3ZIY20zV3kzTEphOUFmM3dlTFFjaVZUClVkMk0zMjROcnl5MysyNkNnaUU4b0k4MVdEZWlkTTM2dVJ5MWxISGFuMGJmOWdsM0QwSndpeFBucUVyQTFVYSsKTGs0aSsxSGJKdlpTdDFlcjRZYzA5ZHVONzhlcXhjYmM3c2JFNTBxNWE1UmZIV3E4NmVJOUlTSmJ2ekxLNGNYcgp3RUozNjlpb1hmY3NCb3JTZk56UHZtc2xNRXFYOGI1WG9IdzBDUmplR0lWKzJBeXVxOHArcjBOQ1Y0SU9qU09TCitRSURBUUFCbzFNd1VUQWRCZ05WSFE0RUZnUVVGS01RT2tIQlRndmlMOHh0alh3MVlDYU81WXd3SHdZRFZSMGoKQkJnd0ZvQVVGS01RT2tIQlRndmlMOHh0alh3MVlDYU81WXd3RHdZRFZSMFRBUUgvQkFVd0F3RUIvekFOQmdrcQpoa2lHOXcwQkFRc0ZBQU9DQVFFQUxxOTFkUW9GM0VMVHpHejc0S20zbTczZmRyekxWcXRlb0VGS3ZuSVFmWXRNClFGYVptaWdrdllXTHh4ZlZ6Q3Y1dVNwWnNXYksyL3FYd2NpR2RTeExNbTAwZVVVSTAvOUY3MERqQ1dKTWhtd0wKTUVsUWZEZjh6aEJXb0xTYTM1Q1JEVGFHcWpISGJORWtYQ2d0TzlRUmxRYjNOaDhOYVVhTU1BekVrODdqaUo0NApZVnV0U2Vra1ZwTEZCeHJnTDk2SGpvczRZY0hiTXQ5eVQvYUYrdnZtZ2FMUGpVNGRVUzFLZXlzR1prT2FnSlpyCjVCdkRsbnozZWl4a3E2ODZpeUVnWHE4Zy83L0duc0pwY3R4K3MyeGY0MmQ4ZE51aFpnWm12dnRQNWtSYmYzME8KK0REOFNydkFlRlBLOVJmM29XdHpaakUxekhKYzM4WGlOSHhtblh1WkxRPT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  tls.key: LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JSUV2UUlCQURBTkJna3Foa2lHOXcwQkFRRUZBQVNDQktjd2dnU2pBZ0VBQW9JQkFRQ2t3QmxJcHpNTmRDbEMKSmJQWVkyS1NNVkxmN281YTNWTHIrVWUrQSthZ0hKaGQ5ZE13Wkh3K1RrU0xnYXpQV3l5NGV1cVRRcDJPdVlPbQpiM2FCTXhTL3pYVWNXK1NvYlN6eUg2ZDV3djJtT1VrTTYyVlMyR1VVcDFQR29CY2E4ZHliZGJMY3NscjBCL2ZCCjR0QnlKVk5SM1l6ZmJnMnZMTGY3Ym9LQ0lUeWdqelZZTjZKMHpmcTVITFdVY2RxZlJ0LzJDWGNQUW5DTEUrZW8KU3NEVlJyNHVUaUw3VWRzbTlsSzNWNnZoaHpUMTI0M3Z4NnJGeHR6dXhzVG5TcmxybEY4ZGFyenA0ajBoSWx1LwpNc3JoeGV2QVFuZnIyS2hkOXl3R2l0SjgzTSsrYXlVd1NwZnh2bGVnZkRRSkdONFloWDdZREs2cnluNnZRMEpYCmdnNk5JNUw1QWdNQkFBRUNnZ0VBSXY4aGY5THduOWVBbWlvTElaaS9EQ0lKSWtONUh1a3IzNitVNDFMTnowNHoKdWFYcUJqb2FRRnY4Nkl1VHkzcHBMZ2tDUW1UZ3RqeEhNSGcxK3EwQXA5dTdtRm9XNFFaTUNXVGEvUjBFSjZhOAprMDkvdHhEN3E5NzloMUJqaUJnL2poQjYvYkd2YTI0ejNZNVNUQ1VNcFhQRUpJUXF5UDdkV0Q0NTMrMnloTUovCmRydUN6MTV3Mm5VcVN2eCtyVnlPMDE3TkhjWGZXRkwyZ21WYy9GQllHWEE0enFET3FzdWZ5dk9GSFhBREs4RWcKYmRHVzdMbUNWdG9qL082S09sa2FQdDNJZm5ZdXduUCtocnQ3T05ySFNYRGJNdmlGd3oxeUpGd3FIQ2gvM1dDeQpselo0SHAzQlBldUlOb0JEWHJJeWlLVjRzaStYSmRvQ2N3OHc5WTNhRndLQmdRQzhna2YzQnNSemNPd3R5OCtZCng0cldndFVZNXkwU0czaWZ3MzVVbU1rSitoMFJnYjFRY0VsaGZlRnpXM2JYTnVmNjFiMk5TU0loM21tQWFkWEsKcDU0YkNncHNacmErMENoUTlXSkZlTi81SUNHSHhScFpwRXQ1QVlEc3hDUStyRFl2SzR4bzBOb052Uk9KVzRNbApOYkFRU1I4RlM4TDZES0l3SHFud3ZxNGd1d0tCZ1FEZnZEMEF5S1Mra2VIbmhiaUY1d0xsRWExV3cwM0JqRkNuCkljNUlRVnVtUURHVUlWazdndEtxVXpEeTZlQkpZQml3WjhKd3RYd0xWV3lHSldJTFh4RE1uUDltRmxCaTg0VWkKdFVGMCtTR0dZb1lDZXA2enVKZFRuejNmdUl0VWF2ZjA2RnZROEhudUp3ZFp3ZWVxU1QxbDVtbkFsbzVnSnlVMQpMWTBHZkNVSjJ3S0JnQTQ4OE42Um5rang0SVRjL2dNV0gwQndoVlBxTWhkS0IrUlpTYk51RHRFNEdQWDNqS3NFCnNDWXk4ZEphdURFdExueGRwSUdGWXBTWVRmT3JDc0RSeERsYW1zcnhQeUJPYkowZ3k1bGZ0ZHNGT0VNZStneUgKUWtRVGZ2OWpHVEc2cENVUDd2MER1VlNNVVd0d2hBbE5jc3pvR1BXM2NUU2R1NnBTeHBjdWI4eDlBb0dBVWpybQpGTjZwcGgwSjhVVDFmOGxiQ0FRS09HUkp0TVEwZEdqNVh4Y2VieWtTejhXOS9TQmsreExlWDdsVHBNUTc3c0lECjlkYk9BNEJmQmFMQnVUbzBlMitNY3VIcW82T3JJQW1NU0VpMGFLYlhhQnZYTG1pK3ZZNCtlSFprUngrVmlKN0oKK0M0YU1reUg2QlpiWmZ2TEpDT2VaSmt4Tk9mT1JoQTZ6OUphN3BjQ2dZRUFpZitIM0s0MEI3cmJhTFU5QjQvUQprQUxkVE9HMDBlUTd3V21RYjNCd0kzNjlHUWU3MDF5ZXkzNFJVWTBtRGcxbnBxQVc0OGRQY08vSjJUZUkyWUZoCkZ4cU05TFdFQXR0MkRMclMzTk96c3FZYm0vRzNoQjJYZytwZzNlb0FoNUZxYlhoSElTRnJhN3AvZWI1STcrOTEKVkkwZUhONmFrSjN1d3hLdC83dGpiVnc9Ci0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0K
+
+---
+# secret-web2.yml
+# crt, key
+apiVersion: v1
+kind: Secret
+
+metadata:
+  name: tls-secret-web2
+
+type: kubernetes.io/tls
+
+data:
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURHekNDQWdPZ0F3SUJBZ0lVRkVpb3ZZL1lOV0lNRFg5dHpuTFppMXVxcXRzd0RRWUpLb1pJaHZjTkFRRUwKQlFBd0hURWJNQmtHQTFVRUF3d1NkMlZpTWk1MGNDMXlaVzVrZFM1MFpYTjBNQjRYRFRJek1EY3lPREV6TURrdwpPVm9YRFRJME1EY3lOekV6TURrd09Wb3dIVEViTUJrR0ExVUVBd3dTZDJWaU1pNTBjQzF5Wlc1a2RTNTBaWE4wCk1JSUJJakFOQmdrcWhraUc5dzBCQVFFRkFBT0NBUThBTUlJQkNnS0NBUUVBc2lKeGtHbXVuNWg0OUp2L2d3NHAKaDc5cU9uQUM2aW5YVUxVcHJyUDhNdDUvVTFRYVhrT0pnaHlVN1NGY3I2cDIrZVFlVzBrZmJlWkJwb1F2YWh6aApDcGVlR3kxU3VDUmlhUjFHc0wxKzNGZTFDZ1lCN1k5Szc2ZVFuZ2xCQ1pQMHVTQlRzaW51WGsxMXFkZEF3U0crCkZ4b1phbmtlaExIU0hFbzdncC85ajErNys3SGxyWXdIVlo2bGE4Ui9CVnd6elFZanZkMmJZcXRFY3hMbWRKcncKdzlCL25OUmw3Y3dvSXYyQlIyUTFDdjVoYWZlSlVRS0NxSkxveTlCMU9xSTZpejJaQ1Jqang2NEFUNFpEY1VCTApCVEpGMm5RanRXWnhEdlRXcE1ETThEWHVRSzE2TWoySFNYaTJnSEc4NW8yWk9wU00xVkR6N1NuYnAydzZqMVk3Ck93SURBUUFCbzFNd1VUQWRCZ05WSFE0RUZnUVV6Mi8xdXUwUzlabFZjU0R5RmFjc2dnVDhJdFV3SHdZRFZSMGoKQkJnd0ZvQVV6Mi8xdXUwUzlabFZjU0R5RmFjc2dnVDhJdFV3RHdZRFZSMFRBUUgvQkFVd0F3RUIvekFOQmdrcQpoa2lHOXcwQkFRc0ZBQU9DQVFFQVEyYTlLZ2xvTmdZQVQ5a0NBUFZuc245c3M4S01mQlpCUXd4UGJYay9aYXBnClU2WDg1cmJBWFdGalE5QUpBUk52YTRteU16elR1aHp4RTZuR3hqT2NpNXBKT2JpRCsweDlZNEE4SXBIaEhzU2UKUWJucmI0a0FkbEhWanhLU1libFlxdCsyRFJKNEdKWGtBZ0pVNVdaYmpoNjJlYjlxV3prMENyUVloWkNSZ3E2QwpHL0pYWnd5SndLYzl5QncrUCs0Tk9mMmduVmwveEdNc3Zqa1R6cjdoU21aSk5Kb1Bndit4OGN4clY2QVVUL25nCnR2c00zUldjSHlJbjVwU3FpUDgrdVFSWDUrVGNJbTVOSGZpcEtxNDlzcjZWYXRkd1F4dHZ6YndCSTNteURkWXkKWkdQV3ppTG9EMTRHbit5aERYeEVwU3B0Z1dKL2hUaXUwd1dERFAwUDVRPT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  tls.key: LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JSUV2UUlCQURBTkJna3Foa2lHOXcwQkFRRUZBQVNDQktjd2dnU2pBZ0VBQW9JQkFRQ3lJbkdRYWE2Zm1IajAKbS8rRERpbUh2Mm82Y0FMcUtkZFF0U211cy93eTNuOVRWQnBlUTRtQ0hKVHRJVnl2cW5iNTVCNWJTUjl0NWtHbQpoQzlxSE9FS2w1NGJMVks0SkdKcEhVYXd2WDdjVjdVS0JnSHRqMHJ2cDVDZUNVRUprL1M1SUZPeUtlNWVUWFdwCjEwREJJYjRYR2hscWVSNkVzZEljU2p1Q24vMlBYN3Y3c2VXdGpBZFZucVZyeEg4RlhEUE5CaU85M1p0aXEwUnoKRXVaMG12REQwSCtjMUdYdHpDZ2kvWUZIWkRVSy9tRnA5NGxSQW9Lb2t1akwwSFU2b2pxTFBaa0pHT1BIcmdCUApoa054UUVzRk1rWGFkQ08xWm5FTzlOYWt3TXp3TmU1QXJYb3lQWWRKZUxhQWNiem1qWms2bEl6VlVQUHRLZHVuCmJEcVBWanM3QWdNQkFBRUNnZ0VBRWdPWXIyMTRpc3d0QXpPWlljUDNZREp6eUNnV3ExNkMxemNTMllkN0RCdmoKRFdhMmFlenpoWFJsZlJ1QUY0V3FGWGhEdDZDTDdKMjU2dUI0T1FkbG5LQWJqWTBHVGZmaitkUkxsMGo2Z01iZgoySDBtQ2NPUlpPM3htb0crRVgxa1pLcEh2SDh3QzFwUytWTjZ5VzBqbjR0MG9ZZFJGa016UjhnYi80ZzFhSit1Cm03WnVZRVN6VDJRclA2N0l1dzFxVEtlZ0E5UFRtVytXZU1HQmxUY0oxdm1pQTRqNW1MSEtYcDF4TElwTlpmdmkKTjJHSkNrTm5HUjFXajlFMEtta1pXRGtBUzBQZUFyeXJMamk2MFN1UDMwNHZVQk9SUGpJRUFlZ2hmdTRSekRsbgppT3hLdmpJSzBZSk5EVjJlOWFXbW12Z0VpMHpHQnhyLzlvc1hnMGdrUFFLQmdRRDVCWkVBYnhqb2E1c2t2SWhlCkNjU2JSS1EveTJoTllwUHJFamQ5VWJTOFA0UDEwaGlXODVvT1MwVXFEQ21BcW9ndWl5Nm1YeEdpY2w3TGRJRHAKOW9YVVZkZzJGR3ZYS0N3WGI3czQ3R09ldTVjd2U2WFgxNHlGR0lEWHFsdkJjUEMwT1QyQW83L0t5ckltTWVRRgpEZllEVXp6VVNocmhvT0tXc0I0U2xLTWI1d0tCZ1FDM0lGaWhkeHpKV2hjdGZPSW1sd3BtbXM5eS9BWkdQdHBOCmhxS1R6MysrdmlUVWgwK05LM2YrY01ScmVQbXlwWmZRMHlybngvNkpLazhXdGVYWGtiUEVzbXNHZ3QveTdxQzMKdzZnbzAyQThGTmJWcy91YzIyMVZaZDM5K0xGT0ZDRjhtL2J6UXNwcEJUczc1b3M3eEJpbDBEZzlTdFBBMXFPVgp5bzNLdUMyYmpRS0JnRWFGelFyU2E3dG12Z2twVzNWR1R1ZXFDTm9JUVFHcGFUcXBiZzJQbGgrNTNTVkEyclhsClJ6dkZGVkZUSUczUDNjRlFxV1YwaHduNldkNUVvRDJpRTBTUEN5eEZuRVRTbTZvSGVuNGtkQklBRGxFc3MwcnQKUUY1eEVnd0JzdnFWZ1pXSW9HSk4vWUx3NUlMc25pYlFUVnVqdHhabjVqVC8yeXZSdExLT1phTUJBb0dBZWprWApqcVR1VEtGWmlOMnFIekYrR3A5R3lDclhrVGpRQVNCVUVDMVV5SjBsL2NkVjNCWGdINjFxRzRVQnV5OTBsVWJyCmd3bGpwRzdkbkgzSktzaXZZQi9vK002TzVCaEtvbnZ2RjFpRkNYU3JNclRPd1pGZWRybm5vV1BFQ3lXNmQrMnMKdEEybkJOTWVCc3ZIc0JzZ2pFTGQxbUxEMUJndDFJTDlnZ2pOUDkwQ2dZRUE4NC93a3pDdDFSM1BZVk1MMm9zcwpRcUlNcG1GVi9VU3doZ3dBaGlKRzVVbkRkQmpPUUR6SjBFeWNJbUhtZnowK0dJazVhZWtMWEtZdFdrYU15OHF5CnkvSFpvdXVGQkc0aVJkSHVBRXFEQmc3WW9xYUtTb1c5dmgxQmMvUys5TjhNNVZ4b3BRMXZuemRZMzA1RkI2dmMKb0ZkeTdtTUJjR3NBU1YzQjZjcmVad1E9Ci0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0K
+
+---
+# ingress.yml
+# 2 rules, 2 hostnames, 2 paths, with SSL
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+
+metadata:
+  name: ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: web1.tp-rendu.test
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: web1-service
+            port:
+              number: 80
+  - host: web2.tp-rendu.test
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: web2-service
+            port:
+              number: 80
+  tls:
+  - hosts:
+    - web1.tp-rendu.test
+    secretName: tls-secret-web1
+  - hosts:
+    - web2.tp-rendu.test
+    secretName: tls-secret-web2
